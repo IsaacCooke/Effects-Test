@@ -1,6 +1,7 @@
 import wave
 import numpy as np
 from scipy.signal import resample
+import librosa
 
 def apply_distortion(input_file, output_file, gain=2.0, threshhold=0.6):
     with wave.open(input_file, 'rb') as wave_in:
@@ -67,7 +68,7 @@ def apply_delay(input_file, output_file, delay_time=0.5, feedback=0.5, mix=0.5):
     
     print(f"Delay effect applied and written to {output_file}")
 
-def apply_octaver(input_file, output_file, shift='up'):
+def apply_chorus(input_file, output_file, delay_time=0.005, feedback=0.2, mix=0.5):
     with wave.open(input_file, 'rb') as wav_in:
         params = wav_in.getparams()
         n_channels, sampwidth, framerate, n_frames, comptype, compname = params
@@ -76,50 +77,65 @@ def apply_octaver(input_file, output_file, shift='up'):
         frames = wav_in.readframes(n_frames)
         audio_signal = np.frombuffer(frames, dtype=np.int16)
         
-        # Handle stereo audio by splitting channels
-        if n_channels == 2:
-            audio_signal = audio_signal.reshape(-1, 2)
+        # Calculate the number of samples for the delay
+        delay_samples = int(delay_time * framerate)
         
-        # Define resampling factors
-        if shift == 'up':
-            factor = 0.5  # Octave up
-        elif shift == 'down':
-            factor = 2.0  # Octave down
-        else:
-            raise ValueError("shift parameter must be 'up' or 'down'")
+        # Create an empty array for the output signal
+        output_signal = np.zeros_like(audio_signal)
         
-        # Resample the audio signal
-        if n_channels == 2:
-            resampled_signal = np.array([resample(audio_signal[:, ch], int(len(audio_signal) * factor)) for ch in range(2)]).T
-        else:
-            resampled_signal = resample(audio_signal, int(len(audio_signal) * factor))
+        # Apply delay effect
+        for i in range(delay_samples, len(audio_signal)):
+            delayed_sample = int(audio_signal[i - delay_samples] * feedback)
+            output_signal[i] = audio_signal[i] + delayed_sample
+            
+        # Mix the original (dry) and delayed (wet) signals
+        output_signal = (audio_signal * (1 - mix) + output_signal * mix).astype(np.int16)
         
-        # Interpolate to match the original length
-        original_indices = np.arange(len(audio_signal))
-        resampled_indices = np.linspace(0, len(audio_signal), num=len(resampled_signal))
-        
-        if n_channels == 2:
-            shifted_signal = np.array([np.interp(original_indices, resampled_indices, resampled_signal[:, ch]) for ch in range(2)]).T
-        else:
-            shifted_signal = np.interp(original_indices, resampled_indices, resampled_signal)
-
-        print(f"Resample done on {n_channels}")
-        
-        # Convert the signal back to int16
-        shifted_signal = np.clip(shifted_signal, np.iinfo(np.int16).min, np.iinfo(np.int16).max).astype(np.int16)
-        
-        # Flatten the signal for stereo
-        if n_channels == 2:
-            shifted_signal = shifted_signal.reshape(-1)
-        
-        # Write the shifted signal to the output WAV file
+        # Write the output signal to the output WAV file
         with wave.open(output_file, 'wb') as wav_out:
             wav_out.setparams(params)
-            wav_out.writeframes(shifted_signal.tobytes())
+            wav_out.writeframes(output_signal.tobytes())
     
-    print(f"Octaver effect applied ({shift} an octave) and written to {output_file}")
+    print(f"Chorus effect applied and written to {output_file}")
 
 
+def transpose_octave(input_file, output_file):
+    with wave.open(input_file, 'rb') as wave_in:
+        params, audio_signal, framerate = preprocess(wave_in)
+
+        # If the audio is stereo, take the mean to convert it to mono
+        if params.nchannels > 1:
+            audio_signal = audio_signal.reshape(-1, params.nchannels)
+            audio_signal = audio_signal.mean(axis=1).astype(np.int16)
+
+        # Perform the Fourier Transform
+        freq_data = np.fft.rfft(audio_signal)
+        
+        # Resample the frequency data to shift it up an octave
+        num_samples = len(audio_signal)
+        new_freq_data = resample(freq_data, num_samples // 2)
+        
+        # Perform the inverse Fourier Transform
+        new_time_data = np.fft.irfft(new_freq_data, num_samples)
+        
+        # Ensure the new data has the correct length
+        new_time_data = new_time_data[:num_samples]
+
+        # Convert the new_time_data to floating point for librosa
+        new_time_data = new_time_data.astype(np.float32)
+
+        # Apply time stretching
+        new_time_data = librosa.effects.time_stretch(new_time_data, rate=0.5)
+        
+        # Convert the stretched data back to int16 for writing to WAV file
+        new_time_data = (new_time_data * np.iinfo(np.int16).max).astype(np.int16)
+
+        # Write the output WAV file
+        with wave.open(output_file, 'wb') as wave_out:
+            wave_out.setparams(params)
+            wave_out.writeframes(new_time_data.tobytes())
+
+    print(f"Transposed file written to {output_file}")
 
 input_file = 'clean_input.wav'
 output_file_up = 'output_octave_up.wav'  # Path to the output WAV file for octave up
@@ -128,7 +144,19 @@ output_file = 'output.wav'
 output_file1 = 'output1.wav'
 output_file2 = 'output2.wav'
 output_file3 = 'output3.wav'
-apply_octaver(input_file, output_file_up, shift='up')
-apply_octaver(input_file, output_file_down, shift='down')
+transpose_octave(input_file, output_file2)
 apply_delay(input_file, output_file, delay_time=0.8, feedback=0.2, mix=0.5)
 apply_distortion(output_file, output_file1, threshhold=0.01, gain=0.4)
+apply_chorus(input_file, output_file3)
+
+def create_loop():
+    if input == record:
+        # Start recording
+        while recording:
+            if input == stop:
+                break
+    file.write(output_file)
+
+def playback():
+    file.read(selected_track)
+    player.play(selected_track)
