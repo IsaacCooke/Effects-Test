@@ -23,43 +23,42 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico2 CACHE STRING "Board type")
+set(PICO_BOARD pico CACHE STRING "Board type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-project(pico C CXX ASM)
+project(pico1 C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(pico pico.cpp )
+add_executable(pico1 pico1.cpp )
 
-pico_set_program_name(pico "pico")
-pico_set_program_version(pico "0.1")
+pico_set_program_name(pico1 "pico1")
+pico_set_program_version(pico1 "0.1")
 
 # Generate PIO header
-pico_generate_pio_header(pico ${CMAKE_CURRENT_LIST_DIR}/blink.pio)
+pico_generate_pio_header(pico1 ${CMAKE_CURRENT_LIST_DIR}/blink.pio)
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(pico 0)
-pico_enable_stdio_usb(pico 0)
+pico_enable_stdio_uart(pico1 0)
+pico_enable_stdio_usb(pico1 0)
 
 # Add the standard library to the build
-target_link_libraries(pico
-        stdc++
+target_link_libraries(pico1
         pico_stdlib)
 
 # Add the standard include files to the build
-target_include_directories(pico PRIVATE
+target_include_directories(pico1 PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
   ${CMAKE_CURRENT_LIST_DIR}/.. # for our common lwipopts or any other standard includes, if required
 )
 
 # Add any user requested libraries
-target_link_libraries(pico 
+target_link_libraries(pico1 
         hardware_spi
         hardware_i2c
         hardware_dma
@@ -69,7 +68,9 @@ target_link_libraries(pico
         hardware_watchdog
         hardware_clocks
         hardware_pwm
+
+        m
         )
 
-pico_add_extra_outputs(pico)
+pico_add_extra_outputs(pico1)
 
