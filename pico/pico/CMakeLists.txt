@@ -69,6 +69,7 @@ target_link_libraries(pico
         hardware_watchdog
         hardware_clocks
         hardware_pwm
+        hardware_adc
         )
 
 pico_add_extra_outputs(pico)

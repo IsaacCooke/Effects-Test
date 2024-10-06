@@ -68,6 +68,7 @@ target_link_libraries(pico1
         hardware_watchdog
         hardware_clocks
         hardware_pwm
+        hardware_adc
 
         m
         )
