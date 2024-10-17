@@ -1,32 +1,54 @@
 #include "pico/stdlib.h"
 #include "hardware/adc.h"
-#include <stdio.h>
+#include "hardware/pwm.h"
+#include <pico/stdio.h>
 
-const uint ADC_PIN = 26;  // Use GPIO 26 (ADC0)
+const uint ADC_PIN = 26;
+const uint PWM_PIN = 15;
 
-int main() {
-    // Initialize stdio to see values printed on the console
+const float GAIN = 1.5;
+
+uint pwm_slice_num;
+
+void setup_pwm_output(){
+    // Set up GPIO 15
+    gpio_set_function(PWM_PIN, GPIO_FUNC_PWM);
+    pwm_slice_num = pwm_gpio_to_slice_num(PWM_PIN);
+
+    // Set frequency
+    pwm_set_wrap(pwm_slice_num, 255);
+    pwm_set_gpio_level(PWM_PIN, 0);
+    pwm_set_enabled(pwm_slice_num, true);
+}
+
+void setup_adc_input(){
+    adc_init();
+    adc_gpio_init(ADC_PIN);
+    adc_select_input(0);
+}
+
+int main(){
     stdio_init_all();
 
-    // Initialize the ADC hardware on the Pico
-    adc_init();
+    setup_adc_input();
+    setup_pwm_output();
 
-    // Select the GPIO pin for the ADC input (ADC0 -> GPIO 26)
-    adc_gpio_init(ADC_PIN);
+    while (true){
+        uint16_t adc_value = adc_read();
 
-    // Select the ADC input (input 0 corresponds to GPIO 26)
-    adc_select_input(0);
+        float processed_signal = (float)adc_value * GAIN;
 
-    // Start an infinite loop to continuously read and display the ADC value
-    while (true) {
-        // Read the ADC value (12-bit result: 0-4095)
-        uint16_t result = adc_read();
+        if (processed_signal > 4095){
+            processed_signal = 4095;
+        } else if (processed_signal < 0){
+            processed_signal = 0;
+        }
 
-        // Print the result to the serial monitor
-        printf("ADC Value: %d\n", result);
+        uint16_t pwm_value = (uint16_t)(processed_signal / 16);
 
-        // Wait for a short time before sampling again
-        sleep_ms(10);  // Sample every 10 milliseconds
+        pwm_set_gpio_level(PWM_PIN, pwm_value);
+
+        sleep_us(50);
     }
 
     return 0;
