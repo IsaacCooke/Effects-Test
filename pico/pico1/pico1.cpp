@@ -1,33 +1,45 @@
 #include "pico/stdlib.h"
+#include "hardware/uart.h"
 #include "hardware/adc.h"
-#include "hardware/pwm.h"
 #include <hardware/gpio.h>
-#include <stdio.h>
+#include <pico/stdio.h>
 
-const int ADC_PIN = 26;
-const int PWM_PIN = 15;
+#define POT_PIN 26
+#define SWITCH_PIN 15
+
+void init_serial() {
+    uart_init(uart0, 115200);
+    gpio_set_function(0, GPIO_FUNC_UART);
+    gpio_set_function(1, GPIO_FUNC_UART);
+}
+
+void send_pot_value(){
+    adc_select_input(0);
+    uint16_t raw_value = adc_read();
+    uint8_t pot_value = raw_value >> 4;
+    uart_putc_raw(uart0, 'p');
+    uart_putc_raw(uart0, pot_value);
+}
+
+void send_switch(bool state){
+    uart_putc_raw(uart0, 's');
+}
 
 int main(){
-    // Init stdio
     stdio_init_all();
+    init_serial();
 
-    // Init ADC
     adc_init();
-    adc_gpio_init(ADC_PIN);
-    adc_select_input(0);
+    adc_gpio_init(POT_PIN);
+    gpio_init(SWITCH_PIN);
+    gpio_set_dir(SWITCH_PIN, GPIO_IN);
+    gpio_pull_up(SWITCH_PIN);
 
-    // Setup PWM for pin 15
-    gpio_set_function(PWM_PIN, GPIO_FUNC_PWM);
-    uint slice_num = pwm_gpio_to_slice_num(PWM_PIN);
-    pwm_set_wrap(slice_num, 65535); // 16 bit
-    pwm_set_enabled(slice_num, true);
+    bool last_switch_state = true;
 
-    while(true){
-        uint16_t adc_value = adc_read();
-        pwm_set_gpio_level(PWM_PIN, adc_value << 4);
-        
-        sleep_ms(100); // Effective sample rate
+    while (true){
+        send_pot_value();
+        send_switch(last_switch_state);
+        sleep_ms(100);
     }
-
-    return 0;
 }
